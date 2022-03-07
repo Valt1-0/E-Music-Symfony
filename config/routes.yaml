@@ -1,0 +1,177 @@
+
+# Accueil
+
+index:
+    path: /index
+    controller: App\Controller\IndexController::index
+
+
+# Instrument
+
+listerClasseInstrument:
+    path: /Instrument/listerClasseInstrument
+    controller: App\Controller\InstrumentController::listerClasseInstrument
+
+listerTypeInstrument:
+    path: /Instrument/listerTypeInstrument/{id}
+    controller: App\Controller\InstrumentController::listerTypeInstrument
+
+listerInstrument:
+    path: /Instrument/listerInstrument/{id}
+    controller: App\Controller\InstrumentController::listerInstrument
+
+listerAllInstrument:
+    path: /Instrument/listerAllInstrument
+    controller: App\Controller\InstrumentController::listerAllInstrument
+
+consulterInstrument:
+    path: /Instrument/consulterInstrument/{id}
+    controller: App\Controller\InstrumentController::consulterInstrument
+
+ajouterInstrument:
+    path: /admin/Instrument/ajouterInstrument
+    controller: App\Controller\InstrumentController::ajouterInstrument
+
+modifierInstrument:
+    path: /admin/Instrument/modifierInstrument/{id}
+    controller: App\Controller\InstrumentController::modifierInstrument
+
+supprimerInstrument:
+    path: /admin/Instrument/supprimerInstrument/{id}
+    controller: App\Controller\InstrumentController::supprimerInstrument
+
+listerLesInterventionsInstrument:
+    path: /Intervention/listerLesInterventionsInstrument/{idInstrument}
+    controller: App\Controller\InstrumentController::listerLesInterventionsInstrument
+
+listerLesAccessoiresInstrument:
+    path: /Accessoire/listerLesAccessoiresInstrument/{idInstrument}
+    controller: App\Controller\InstrumentController::listerLesAccessoiresInstrument
+
+
+
+# Elève
+
+listerEleve:
+     path: /prof/Eleve/listerEleve
+     controller: App\Controller\EleveController::listerEleve
+
+ajouterEleve:
+     path: /admin/Eleve/ajouterEleve
+     controller: App\Controller\EleveController:ajouterEleve
+
+consulterEleve:
+     path: /admin/Eleve/consulterEleve/{id}
+     controller: App\Controller\EleveController:consulterEleve
+
+supprimerEleve:
+     path: /admin/Eleve/supprimerEleve
+     controller: App\Controller\EleveController:supprimerEleve
+
+modifierEleve:
+     path: /admin/Eleve/modifierEleve/{id}
+     controller: App\Controller\EleveController:modifierEleve
+
+
+# Professeur
+
+listerProfesseur:
+    path: /prof/Professeur/listerProfesseur
+    controller: App\Controller\ProfesseurController::listerProfesseur
+
+ajouterProfesseur:
+    path: /admin/Professeur/ajouterProfesseur
+    controller: App\Controller\ProfesseurController::ajouterProfesseur
+
+consulterProfesseur:
+    path: /admin/Professeur/consulterProfesseur/{idProfesseur}
+    controller: App\Controller\ProfesseurController::consulterProfesseur
+
+modifierProfesseur:
+    path: /admin/Professeur/modifierProfesseur/{idProfesseur}
+    controller: App\Controller\ProfesseurController::modifierProfesseur
+
+deleteProfesseur:
+    path: /admin/Professeur/delete/{idProfesseur}
+    controller: App\Controller\ProfesseurController::deleteProfesseur
+
+
+# Cours
+
+listerCours:
+    path: /Cours/listerCours
+    controller: App\Controller\CoursController::listerCours
+
+ajouterCours:
+    path: /admin/Cours/ajouterCours
+    controller: App\Controller\CoursController::ajouterCours
+
+consulterCours:
+    path: /admin/Cours/consulterCours/{idCours}
+    controller: App\Controller\CoursController::consulterCours
+
+modifierCours:
+    path: /admin/Cours/modifierCours/{idCours}
+    controller: App\Controller\CoursController::modifierCours
+
+supprimerCours:
+    path: /admin/Cours/supprimerCours/{idCours}
+    controller: App\Controller\CoursController::supprimerCours
+
+ajouterEleveCours:
+    path: /admin/Registration/register/
+    controller: App\Controller\RegisterController::register
+
+     
+# Prêt
+
+listerPret:
+    path: /admin/Pret/listerPret
+    controller: App\Controller\PretController::listerPret
+
+ajouterPret:
+    path: /admin/Pret/ajouterPret
+    controller: App\Controller\PretController::ajouterPret
+
+consulterPret:
+    path: /admin/Pret/consulterPret/{idPret}
+    controller: App\Controller\PretController::consulterPret
+
+
+# Accessoire
+
+ajouterAccessoire:
+    path: /prof/Accessoire/ajouterAccessoire
+    controller: App\Controller\AccessoireController::ajouterAccessoire
+
+  
+
+# Connexion
+
+login:
+    path: /app_login
+    controller: App\Controller\SecurityController::login
+
+logout:
+    path: /logout
+    controller: App\Controller\SecurityController::logout
+
+#profil
+
+consulterProfil:
+    path: /Profil/
+    controller: App\Controller\ProfilController::consulterProfil
+
+#Inscription
+listerInscription:
+    path: /admin/Inscription/listerInscription
+    controller: App\Controller\InscriptionController::listerInscription
+
+ajouterInscription:
+    path: /admin/Inscription/ajouterInscription
+    controller: App\Controller\InscriptionController::ajouterInscription
+
+consulterInscription:
+    path: /admin/Inscription/consulterInscription/{idInscription}
+    controller: App\Controller\InscriptionController::consulterInscription
+

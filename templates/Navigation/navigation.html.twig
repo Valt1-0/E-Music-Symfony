@@ -1,0 +1,54 @@
+             <!-- Navigation-->
+        <nav class="navbar navbar-expand-lg navbar-dark fixed-top" id="mainNav">
+            <div class="container">
+                <a href="{{ path('app_home') }}"><img class="logo" src="{{ asset('assets/img/logo.png') }}" /></a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+                    Menu
+                    <i class="fas fa-bars ms-1"></i>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarResponsive">
+                    <ul class="navbar-nav  ms-auto py-4 py-lg-0">
+                        <li class="nav-item"><a class="nav-link" href="{{ path('app_home') }}">Accueil</a></li>
+
+                        {% if app.user %}
+                            {% if is_granted('ROLE_ADMIN') %}
+						        <li class="nav-item"><a class="nav-link" href="{{ path('listerClasseInstrument') }}">Instrument</a></li>
+
+                                <li class="nav-item"><a class="nav-link" href="{{ path('listerEleve') }}">Eleve</a></li>
+
+                                <li class="nav-item"><a class="nav-link" href="{{ path('listerPret') }}">Emprunt</a></li>
+
+                                <li class="nav-item"><a class="nav-link" href="{{ path('listerCours') }}">Cours</a></li>
+
+                                <li class="nav-item"><a class="nav-link" href="{{ path('listerProfesseur') }}">Professeur</a></li>
+				
+				                <li class="nav-item"><a class="nav-link" href="{{ path('listerInscription') }}">Inscription</a></li>
+
+                            {% elseif is_granted('ROLE_PROF')  %}
+
+                                 <li class="nav-item"><a class="nav-link" href="{{ path('listerClasseInstrument') }}">Instrument</a></li>
+
+                                <li class="nav-item"><a class="nav-link" href="{{ path('listerEleve') }}">Eleve</a></li>
+                                
+                                <li class="nav-item"><a class="nav-link" href="{{ path('listerCours') }}">Cours</a></li>
+
+                                <li class="nav-item"><a class="nav-link" href="{{ path('listerProfesseur') }}">Professeur</a></li>
+
+                                
+
+                            {% else %}
+
+                            <li class="nav-item"><a class="nav-link" href="{{ path('listerClasseInstrument') }}">Instrument</a></li>
+                            
+                            <li class="nav-item"><a class="nav-link" href="{{ path('listerCours') }}">Cours</a></li>
+
+
+                            {% endif %}
+                                <li class="nav-item"><a class="nav-link" href="{{ path('app_logout') }}">D&#xE9;connexion</a></li>
+                                <li class="nav-item"><a class="nav-link" href="{{ path('consulterProfil') }}">{{ app.user.username }}</a></li>
+                        {% else %}
+                            <li class="nav-item"><a class="nav-link" href="{{ path('app_login') }}">Connexion</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+        </nav>
