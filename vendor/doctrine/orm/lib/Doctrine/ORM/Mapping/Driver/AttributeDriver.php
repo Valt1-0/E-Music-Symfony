@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace Doctrine\ORM\Mapping\Driver;
 
+use Doctrine\Deprecations\Deprecation;
 use Doctrine\ORM\Events;
 use Doctrine\ORM\Mapping;
 use Doctrine\ORM\Mapping\Builder\EntityListenerBuilder;
 use Doctrine\ORM\Mapping\ClassMetadataInfo;
 use Doctrine\ORM\Mapping\MappingException;
 use Doctrine\Persistence\Mapping\ClassMetadata;
-use Doctrine\Persistence\Mapping\Driver\AnnotationDriver;
+use Doctrine\Persistence\Mapping\Driver\ColocatedMappingDriver;
+use Doctrine\Persistence\Mapping\Driver\MappingDriver;
+use LogicException;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -20,9 +23,14 @@ use function class_exists;
 use function constant;
 use function defined;
 use function get_class;
+use function sprintf;
 
-class AttributeDriver extends AnnotationDriver
+use const PHP_VERSION_ID;
+
+class AttributeDriver implements MappingDriver
 {
+    use ColocatedMappingDriver;
+
     /** @var array<string,int> */
     // @phpcs:ignore
     protected $entityAnnotationClasses = [
@@ -31,11 +39,47 @@ class AttributeDriver extends AnnotationDriver
     ];
 
     /**
+     * The annotation reader.
+     *
+     * @internal this property will be private in 3.0
+     *
+     * @var AttributeReader
+     */
+    protected $reader;
+
+    /**
      * @param array<string> $paths
      */
     public function __construct(array $paths)
     {
-        parent::__construct(new AttributeReader(), $paths);
+        if (PHP_VERSION_ID < 80000) {
+            throw new LogicException(sprintf(
+                'The attribute metadata driver cannot be enabled on PHP 7. Please upgrade to PHP 8 or choose a different'
+                . ' metadata driver.'
+            ));
+        }
+
+        $this->reader = new AttributeReader();
+        $this->addPaths($paths);
+    }
+
+    /**
+     * Retrieve the current annotation reader
+     *
+     * @deprecated no replacement planned.
+     *
+     * @return AttributeReader
+     */
+    public function getReader()
+    {
+        Deprecation::trigger(
+            'doctrine/orm',
+            'https://github.com/doctrine/orm/pull/9587',
+            '%s is deprecated with no replacement',
+            __METHOD__
+        );
+
+        return $this->reader;
     }
 
     /**
@@ -260,7 +304,7 @@ class AttributeDriver extends AnnotationDriver
             // Check for JoinColumn/JoinColumns annotations
             $joinColumns = [];
 
-            $joinColumnAttributes = $this->reader->getPropertyAnnotation($property, Mapping\JoinColumn::class);
+            $joinColumnAttributes = $this->reader->getPropertyAnnotationCollection($property, Mapping\JoinColumn::class);
 
             foreach ($joinColumnAttributes as $joinColumnAttribute) {
                 $joinColumns[] = $this->joinColumnToArray($joinColumnAttribute);
@@ -365,11 +409,11 @@ class AttributeDriver extends AnnotationDriver
                     ];
                 }
 
-                foreach ($this->reader->getPropertyAnnotation($property, Mapping\JoinColumn::class) as $joinColumn) {
+                foreach ($this->reader->getPropertyAnnotationCollection($property, Mapping\JoinColumn::class) as $joinColumn) {
                     $joinTable['joinColumns'][] = $this->joinColumnToArray($joinColumn);
                 }
 
-                foreach ($this->reader->getPropertyAnnotation($property, Mapping\InverseJoinColumn::class) as $joinColumn) {
+                foreach ($this->reader->getPropertyAnnotationCollection($property, Mapping\InverseJoinColumn::class) as $joinColumn) {
                     $joinTable['inverseJoinColumns'][] = $this->joinColumnToArray($joinColumn);
                 }
 
@@ -397,12 +441,72 @@ class AttributeDriver extends AnnotationDriver
             }
         }
 
-        // Evaluate AttributeOverrides annotation
-        if (isset($classAttributes[Mapping\AttributeOverride::class])) {
-            foreach ($classAttributes[Mapping\AttributeOverride::class] as $attributeOverrideAttribute) {
-                $attributeOverride = $this->columnToArray($attributeOverrideAttribute->name, $attributeOverrideAttribute->column);
+        // Evaluate AssociationOverrides attribute
+        if (isset($classAttributes[Mapping\AssociationOverrides::class])) {
+            $associationOverride = $classAttributes[Mapping\AssociationOverrides::class];
 
-                $metadata->setAttributeOverride($attributeOverrideAttribute->name, $attributeOverride);
+            foreach ($associationOverride->overrides as $associationOverride) {
+                $override  = [];
+                $fieldName = $associationOverride->name;
+
+                // Check for JoinColumn/JoinColumns attributes
+                if ($associationOverride->joinColumns) {
+                    $joinColumns = [];
+
+                    foreach ($associationOverride->joinColumns as $joinColumn) {
+                        $joinColumns[] = $this->joinColumnToArray($joinColumn);
+                    }
+
+                    $override['joinColumns'] = $joinColumns;
+                }
+
+                if ($associationOverride->inverseJoinColumns) {
+                    $joinColumns = [];
+
+                    foreach ($associationOverride->inverseJoinColumns as $joinColumn) {
+                        $joinColumns[] = $this->joinColumnToArray($joinColumn);
+                    }
+
+                    $override['inverseJoinColumns'] = $joinColumns;
+                }
+
+                // Check for JoinTable attributes
+                if ($associationOverride->joinTable) {
+                    $joinTableAnnot = $associationOverride->joinTable;
+                    $joinTable      = [
+                        'name'      => $joinTableAnnot->name,
+                        'schema'    => $joinTableAnnot->schema,
+                        'joinColumns' => $override['joinColumns'] ?? [],
+                        'inverseJoinColumns' => $override['inverseJoinColumns'] ?? [],
+                    ];
+
+                    unset($override['joinColumns'], $override['inverseJoinColumns']);
+
+                    $override['joinTable'] = $joinTable;
+                }
+
+                // Check for inversedBy
+                if ($associationOverride->inversedBy) {
+                    $override['inversedBy'] = $associationOverride->inversedBy;
+                }
+
+                // Check for `fetch`
+                if ($associationOverride->fetch) {
+                    $override['fetch'] = constant(Mapping\ClassMetadata::class . '::FETCH_' . $associationOverride->fetch);
+                }
+
+                $metadata->setAssociationOverride($fieldName, $override);
+            }
+        }
+
+        // Evaluate AttributeOverrides annotation
+        if (isset($classAttributes[Mapping\AttributeOverrides::class])) {
+            $attributeOverridesAnnot = $classAttributes[Mapping\AttributeOverrides::class];
+
+            foreach ($attributeOverridesAnnot->overrides as $attributeOverride) {
+                $mapping = $this->columnToArray($attributeOverride->name, $attributeOverride->column);
+
+                $metadata->setAttributeOverride($attributeOverride->name, $mapping);
             }
         }
 
@@ -466,6 +570,20 @@ class AttributeDriver extends AnnotationDriver
         }
 
         return constant('Doctrine\ORM\Mapping\ClassMetadata::FETCH_' . $fetchMode);
+    }
+
+    /**
+     * Attempts to resolve the generated mode.
+     *
+     * @throws MappingException If the fetch mode is not valid.
+     */
+    private function getGeneratedMode(string $generatedMode): int
+    {
+        if (! defined('Doctrine\ORM\Mapping\ClassMetadata::GENERATED_' . $generatedMode)) {
+            throw MappingException::invalidGeneratedMode($generatedMode);
+        }
+
+        return constant('Doctrine\ORM\Mapping\ClassMetadata::GENERATED_' . $generatedMode);
     }
 
     /**
@@ -554,6 +672,7 @@ class AttributeDriver extends AnnotationDriver
      *                   unique: bool,
      *                   nullable: bool,
      *                   precision: int,
+     *                   enumType?: class-string,
      *                   options?: mixed[],
      *                   columnName?: string,
      *                   columnDefinition?: string
@@ -581,6 +700,22 @@ class AttributeDriver extends AnnotationDriver
 
         if (isset($column->columnDefinition)) {
             $mapping['columnDefinition'] = $column->columnDefinition;
+        }
+
+        if ($column->updatable === false) {
+            $mapping['notUpdatable'] = true;
+        }
+
+        if ($column->insertable === false) {
+            $mapping['notInsertable'] = true;
+        }
+
+        if ($column->generated !== null) {
+            $mapping['generated'] = $this->getGeneratedMode($column->generated);
+        }
+
+        if ($column->enumType) {
+            $mapping['enumType'] = $column->enumType;
         }
 
         return $mapping;

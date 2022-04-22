@@ -39,5 +39,19 @@
                 <file name="Repository/ServiceEntityRepository.php"/>
             </errorLevel>
         </TooManyTemplateParams>
+        <InvalidArrayOffset>
+            <errorLevel type="suppress">
+                <!-- requires a release of https://github.com/doctrine/dbal/pull/5261 -->
+                <file name="Tests/ConnectionFactoryTest.php"/>
+            </errorLevel>
+        </InvalidArrayOffset>
+        <UndefinedDocblockClass>
+            <errorLevel type="suppress">
+                <!-- https://github.com/symfony/symfony/issues/45609 -->
+                <referencedClass name="UnitEnum" />
+                <directory name="DependencyInjection"/>
+                <directory name="Tests/DependencyInjection"/>
+            </errorLevel>
+        </UndefinedDocblockClass>
     </issueHandlers>
 </psalm>

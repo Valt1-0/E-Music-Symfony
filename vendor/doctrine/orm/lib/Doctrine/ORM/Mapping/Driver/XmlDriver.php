@@ -11,6 +11,7 @@ use Doctrine\ORM\Mapping\MappingException;
 use Doctrine\Persistence\Mapping\ClassMetadata;
 use Doctrine\Persistence\Mapping\Driver\FileDriver;
 use InvalidArgumentException;
+use LogicException;
 use SimpleXMLElement;
 
 use function assert;
@@ -18,6 +19,7 @@ use function constant;
 use function count;
 use function defined;
 use function explode;
+use function extension_loaded;
 use function file_get_contents;
 use function in_array;
 use function simplexml_load_string;
@@ -39,6 +41,13 @@ class XmlDriver extends FileDriver
      */
     public function __construct($locator, $fileExtension = self::DEFAULT_FILE_EXTENSION)
     {
+        if (! extension_loaded('simplexml')) {
+            throw new LogicException(sprintf(
+                'The XML metadata driver cannot be enabled because the SimpleXML PHP extension is missing.'
+                . ' Please configure PHP with SimpleXML or choose a different metadata driver.'
+            ));
+        }
+
         parent::__construct($locator, $fileExtension);
     }
 
@@ -800,6 +809,9 @@ class XmlDriver extends FileDriver
       *                   scale?: int,
       *                   unique?: bool,
       *                   nullable?: bool,
+      *                   notInsertable?: bool,
+      *                   notUpdatable?: bool,
+      *                   enumType?: string,
       *                   version?: bool,
       *                   columnDefinition?: string,
       *                   options?: array
@@ -839,12 +851,28 @@ class XmlDriver extends FileDriver
             $mapping['nullable'] = $this->evaluateBoolean($fieldMapping['nullable']);
         }
 
+        if (isset($fieldMapping['insertable']) && ! $this->evaluateBoolean($fieldMapping['insertable'])) {
+            $mapping['notInsertable'] = true;
+        }
+
+        if (isset($fieldMapping['updatable']) && ! $this->evaluateBoolean($fieldMapping['updatable'])) {
+            $mapping['notUpdatable'] = true;
+        }
+
+        if (isset($fieldMapping['generated'])) {
+            $mapping['generated'] = constant('Doctrine\ORM\Mapping\ClassMetadata::GENERATED_' . (string) $fieldMapping['generated']);
+        }
+
         if (isset($fieldMapping['version']) && $fieldMapping['version']) {
             $mapping['version'] = $this->evaluateBoolean($fieldMapping['version']);
         }
 
         if (isset($fieldMapping['column-definition'])) {
             $mapping['columnDefinition'] = (string) $fieldMapping['column-definition'];
+        }
+
+        if (isset($fieldMapping['enum-type'])) {
+            $mapping['enumType'] = (string) $fieldMapping['enum-type'];
         }
 
         if (isset($fieldMapping->options)) {

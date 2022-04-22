@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace Doctrine\ORM\Query;
 
+use Doctrine\DBAL\Types\Type;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Internal\SQLResultCasing;
 use Doctrine\ORM\Mapping\ClassMetadataInfo;
 use Doctrine\ORM\Mapping\MappingException;
 use Doctrine\ORM\Utility\PersisterHelper;
 use InvalidArgumentException;
+use LogicException;
 
+use function assert;
 use function explode;
 use function in_array;
 use function sprintf;
-use function strpos;
+use function str_contains;
 use function strtolower;
 
 /**
@@ -56,11 +59,13 @@ class ResultSetMappingBuilder extends ResultSetMapping
      * Default column renaming mode.
      *
      * @var int
+     * @psalm-var self::COLUMN_RENAMING_*
      */
     private $defaultRenameMode;
 
     /**
      * @param int $defaultRenameMode
+     * @psalm-param self::COLUMN_RENAMING_* $defaultRenameMode
      */
     public function __construct(EntityManagerInterface $em, $defaultRenameMode = self::COLUMN_RENAMING_NONE)
     {
@@ -75,7 +80,9 @@ class ResultSetMappingBuilder extends ResultSetMapping
      * @param string   $alias          The unique alias to use for the root entity.
      * @param string[] $renamedColumns Columns that have been renamed (tableColumnName => queryColumnName).
      * @param int|null $renameMode     One of the COLUMN_RENAMING_* constants or array for BC reasons (CUSTOM).
+     * @psalm-param class-string $class
      * @psalm-param array<string, string> $renamedColumns
+     * @psalm-param self::COLUMN_RENAMING_*|null $renameMode
      *
      * @return void
      */
@@ -98,7 +105,9 @@ class ResultSetMappingBuilder extends ResultSetMapping
      *                                 with the joined entity result.
      * @param string[] $renamedColumns Columns that have been renamed (tableColumnName => queryColumnName).
      * @param int|null $renameMode     One of the COLUMN_RENAMING_* constants or array for BC reasons (CUSTOM).
+     * @psalm-param class-string $class
      * @psalm-param array<string, string> $renamedColumns
+     * @psalm-param self::COLUMN_RENAMING_*|null $renameMode
      *
      * @return void
      */
@@ -185,6 +194,8 @@ class ResultSetMappingBuilder extends ResultSetMapping
      * Gets column alias for a given column.
      *
      * @psalm-param array<string, string>  $customRenameColumns
+     *
+     * @psalm-assert self::COLUMN_RENAMING_* $mode
      */
     private function getColumnAlias(string $columnName, int $mode, array $customRenameColumns): string
     {
@@ -272,8 +283,10 @@ class ResultSetMappingBuilder extends ResultSetMapping
     public function addNamedNativeQueryResultClassMapping(ClassMetadataInfo $class, $resultClassName)
     {
         $classMetadata = $this->em->getClassMetadata($resultClassName);
-        $shortName     = $classMetadata->reflClass->getShortName();
-        $alias         = strtolower($shortName[0]) . '0';
+        assert($classMetadata->reflClass !== null);
+
+        $shortName = $classMetadata->reflClass->getShortName();
+        $alias     = strtolower($shortName[0]) . '0';
 
         $this->addEntityResult($class->name, $alias);
 
@@ -315,14 +328,19 @@ class ResultSetMappingBuilder extends ResultSetMapping
      */
     public function addNamedNativeQueryResultSetMapping(ClassMetadataInfo $class, $resultSetMappingName)
     {
+        if ($class->reflClass === null) {
+            throw new LogicException('Given class metadata has now class reflector.');
+        }
+
         $counter       = 0;
         $resultMapping = $class->getSqlResultSetMapping($resultSetMappingName);
         $rootShortName = $class->reflClass->getShortName();
         $rootAlias     = strtolower($rootShortName[0]) . $counter;
 
         if (isset($resultMapping['entities'])) {
-            foreach ($resultMapping['entities'] as $key => $entityMapping) {
+            foreach ($resultMapping['entities'] as $entityMapping) {
                 $classMetadata = $this->em->getClassMetadata($entityMapping['entityClass']);
+                assert($classMetadata->reflClass !== null);
 
                 if ($class->reflClass->name === $classMetadata->reflClass->name) {
                     $this->addEntityResult($classMetadata->name, $rootAlias);
@@ -369,7 +387,7 @@ class ResultSetMappingBuilder extends ResultSetMapping
     {
         if (isset($entityMapping['discriminatorColumn']) && $entityMapping['discriminatorColumn']) {
             $discriminatorColumn = $entityMapping['discriminatorColumn'];
-            $discriminatorType   = $classMetadata->discriminatorColumn['type'];
+            $discriminatorType   = $classMetadata->getDiscriminatorColumn()['type'];
 
             $this->setDiscriminatorColumn($alias, $discriminatorColumn);
             $this->addMetaResult($alias, $discriminatorColumn, $discriminatorColumn, false, $discriminatorType);
@@ -380,7 +398,7 @@ class ResultSetMappingBuilder extends ResultSetMapping
                 $fieldName = $field['name'];
                 $relation  = null;
 
-                if (strpos($fieldName, '.') !== false) {
+                if (str_contains($fieldName, '.')) {
                     [$relation, $fieldName] = explode('.', $fieldName);
                 }
 
@@ -432,19 +450,26 @@ class ResultSetMappingBuilder extends ResultSetMapping
         foreach ($this->columnOwnerMap as $columnName => $dqlAlias) {
             $tableAlias = $tableAliases[$dqlAlias] ?? $dqlAlias;
 
-            if ($sql) {
+            if ($sql !== '') {
                 $sql .= ', ';
             }
 
-            $sql .= $tableAlias . '.';
-
             if (isset($this->fieldMappings[$columnName])) {
-                $class = $this->em->getClassMetadata($this->declaringClasses[$columnName]);
-                $sql  .= $class->fieldMappings[$this->fieldMappings[$columnName]]['columnName'];
+                $class             = $this->em->getClassMetadata($this->declaringClasses[$columnName]);
+                $fieldName         = $this->fieldMappings[$columnName];
+                $classFieldMapping = $class->fieldMappings[$fieldName];
+                $columnSql         = $tableAlias . '.' . $classFieldMapping['columnName'];
+
+                if (isset($classFieldMapping['requireSQLConversion']) && $classFieldMapping['requireSQLConversion'] === true) {
+                    $type      = Type::getType($classFieldMapping['type']);
+                    $columnSql = $type->convertToPHPValueSQL($columnSql, $this->em->getConnection()->getDatabasePlatform());
+                }
+
+                $sql .= $columnSql;
             } elseif (isset($this->metaMappings[$columnName])) {
-                $sql .= $this->metaMappings[$columnName];
+                $sql .= $tableAlias . '.' . $this->metaMappings[$columnName];
             } elseif (isset($this->discriminatorColumns[$dqlAlias])) {
-                $sql .= $this->discriminatorColumns[$dqlAlias];
+                $sql .= $tableAlias . '.' . $this->discriminatorColumns[$dqlAlias];
             }
 
             $sql .= ' AS ' . $columnName;

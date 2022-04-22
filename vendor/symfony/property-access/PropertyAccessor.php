@@ -470,6 +470,10 @@ class PropertyAccessor implements PropertyAccessorInterface
                         throw $e;
                     }
                 } elseif (PropertyReadInfo::TYPE_PROPERTY === $type) {
+                    if ($access->canBeReference() && !isset($object->$name) && !\array_key_exists($name, (array) $object) && (\PHP_VERSION_ID < 70400 || !(new \ReflectionProperty($class, $name))->hasType())) {
+                        throw new UninitializedPropertyException(sprintf('The property "%s::$%s" is not initialized.', $class, $name));
+                    }
+
                     $result[self::VALUE] = $object->$name;
 
                     if (isset($zval[self::REF]) && $access->canBeReference()) {
@@ -478,16 +482,16 @@ class PropertyAccessor implements PropertyAccessorInterface
                 }
             } catch (\Error $e) {
                 // handle uninitialized properties in PHP >= 7.4
-                if (\PHP_VERSION_ID >= 70400 && preg_match('/^Typed property ([\w\\\]+)::\$(\w+) must not be accessed before initialization$/', $e->getMessage(), $matches)) {
-                    $r = new \ReflectionProperty($matches[1], $matches[2]);
+                if (\PHP_VERSION_ID >= 70400 && preg_match('/^Typed property ('.preg_quote(get_debug_type($object), '/').')::\$(\w+) must not be accessed before initialization$/', $e->getMessage(), $matches)) {
+                    $r = new \ReflectionProperty($class, $matches[2]);
                     $type = ($type = $r->getType()) instanceof \ReflectionNamedType ? $type->getName() : (string) $type;
 
-                    throw new UninitializedPropertyException(sprintf('The property "%s::$%s" is not readable because it is typed "%s". You should initialize it or declare a default value instead.', $r->getDeclaringClass()->getName(), $r->getName(), $type), 0, $e);
+                    throw new UninitializedPropertyException(sprintf('The property "%s::$%s" is not readable because it is typed "%s". You should initialize it or declare a default value instead.', $matches[1], $r->getName(), $type), 0, $e);
                 }
 
                 throw $e;
             }
-        } elseif ($object instanceof \stdClass && property_exists($object, $property)) {
+        } elseif (property_exists($object, $property) && \array_key_exists($property, (array) $object)) {
             $result[self::VALUE] = $object->$property;
             if (isset($zval[self::REF])) {
                 $result[self::REF] = &$object->$property;

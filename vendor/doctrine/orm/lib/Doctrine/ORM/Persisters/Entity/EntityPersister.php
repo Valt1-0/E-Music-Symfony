@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Doctrine\ORM\Persisters\Entity;
 
 use Doctrine\Common\Collections\Criteria;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Mapping\MappingException;
 use Doctrine\ORM\PersistentCollection;
@@ -31,17 +32,17 @@ interface EntityPersister
     /**
      * Get all queued inserts.
      *
-     * @psalm-return array<string|int, object>
+     * @return object[]
      */
     public function getInserts();
 
      /**
+      * Gets the INSERT SQL used by the persister to persist a new entity.
+      *
       * @return string
       *
-      * @TODO - It should not be here.
-      * But its necessary since JoinedSubclassPersister#executeInserts invoke the root persister.
-      *
-      * Gets the INSERT SQL used by the persister to persist a new entity.
+      * @TODO It should not be here.
+      *       But its necessary since JoinedSubclassPersister#executeInserts invoke the root persister.
       */
     public function getInsertSQL();
 
@@ -54,6 +55,7 @@ interface EntityPersister
      * @param int|null         $limit
      * @param int|null         $offset
      * @param mixed[]|null     $orderBy
+     * @psalm-param LockMode::*|null $lockMode
      *
      * @return string
      */
@@ -185,6 +187,7 @@ interface EntityPersister
      * @psalm-param array<string, mixed>       $criteria
      * @psalm-param array<string, mixed>|null  $assoc
      * @psalm-param array<string, mixed>       $hints
+     * @psalm-param LockMode::*|null           $lockMode
      * @psalm-param array<string, string>|null $orderBy
      *
      * @return object|null The loaded and managed entity instance or NULL if the entity can not be found.
@@ -239,6 +242,7 @@ interface EntityPersister
      * @psalm-param array<string, mixed> $id The identifier of the entity as an
      *                                       associative array from column or
      *                                       field names to values.
+     * @psalm-param LockMode::*|null $lockMode
      *
      * @return void
      */
@@ -300,6 +304,7 @@ interface EntityPersister
      *
      * @param int $lockMode One of the Doctrine\DBAL\LockMode::* constants.
      * @psalm-param array<string, mixed> $criteria
+     * @psalm-param LockMode::* $lockMode
      *
      * @return void
      */

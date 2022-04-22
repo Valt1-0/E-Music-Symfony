@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Doctrine\ORM\Query;
 
 use Doctrine\ORM\Configuration;
-use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query\Filter\SQLFilter;
 use InvalidArgumentException;
@@ -40,7 +39,7 @@ class FilterCollection
     /**
      * The EntityManager that "owns" this FilterCollection instance.
      *
-     * @var EntityManager
+     * @var EntityManagerInterface
      */
     private $em;
 
@@ -48,13 +47,23 @@ class FilterCollection
      * Instances of enabled filters.
      *
      * @var SQLFilter[]
+     * @psalm-var array<string, SQLFilter>
      */
     private $enabledFilters = [];
 
-    /** @var string The filter hash from the last time the query was parsed. */
-    private $filterHash;
+    /**
+     * The filter hash from the last time the query was parsed.
+     *
+     * @var string
+     */
+    private $filterHash = '';
 
-    /** @var int The current state of this filter. */
+    /**
+     * The current state of this filter.
+     *
+     * @var int
+     * @psalm-var self::FILTERS_STATE_*
+     */
     private $filtersState = self::FILTERS_STATE_CLEAN;
 
     public function __construct(EntityManagerInterface $em)
@@ -67,6 +76,7 @@ class FilterCollection
      * Gets all the enabled filters.
      *
      * @return SQLFilter[] The enabled filters.
+     * @psalm-return array<string, SQLFilter>
      */
     public function getEnabledFilters()
     {
@@ -98,8 +108,7 @@ class FilterCollection
             // Keep the enabled filters sorted for the hash
             ksort($this->enabledFilters);
 
-            // Now the filter collection is dirty
-            $this->filtersState = self::FILTERS_STATE_DIRTY;
+            $this->setFiltersStateDirty();
         }
 
         return $this->enabledFilters[$name];
@@ -121,8 +130,7 @@ class FilterCollection
 
         unset($this->enabledFilters[$name]);
 
-        // Now the filter collection is dirty
-        $this->filtersState = self::FILTERS_STATE_DIRTY;
+        $this->setFiltersStateDirty();
 
         return $filter;
     }
@@ -170,7 +178,9 @@ class FilterCollection
     }
 
     /**
-     * @return bool True, if the filter collection is clean.
+     * Checks if the filter collection is clean.
+     *
+     * @return bool
      */
     public function isClean()
     {
@@ -194,6 +204,9 @@ class FilterCollection
         foreach ($this->enabledFilters as $name => $filter) {
             $filterHash .= $name . $filter;
         }
+
+        $this->filterHash   = $filterHash;
+        $this->filtersState = self::FILTERS_STATE_CLEAN;
 
         return $filterHash;
     }

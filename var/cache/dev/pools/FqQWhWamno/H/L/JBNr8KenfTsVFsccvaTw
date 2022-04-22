@@ -1,0 +1,3 @@
+<?php //Doctrine%255CCommon%255CCollections%255CAbstractLazyCollection%2524collection
+
+return [PHP_INT_MAX, []];

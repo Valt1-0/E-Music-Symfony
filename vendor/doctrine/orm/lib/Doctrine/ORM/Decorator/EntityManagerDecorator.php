@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Doctrine\ORM\Decorator;
 
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\EntityRepository;
 use Doctrine\ORM\Query\ResultSetMapping;
 use Doctrine\Persistence\ObjectManagerDecorator;
 
-use function get_class;
+use function get_debug_type;
 use function method_exists;
 use function sprintf;
 use function trigger_error;
@@ -17,12 +18,11 @@ use const E_USER_NOTICE;
 
 /**
  * Base class for EntityManager decorators
+ *
+ * @extends ObjectManagerDecorator<EntityManagerInterface>
  */
 abstract class EntityManagerDecorator extends ObjectManagerDecorator implements EntityManagerInterface
 {
-    /** @var EntityManagerInterface */
-    protected $wrapped;
-
     public function __construct(EntityManagerInterface $wrapped)
     {
         $this->wrapped = $wrapped;
@@ -42,6 +42,28 @@ abstract class EntityManagerDecorator extends ObjectManagerDecorator implements 
     public function getExpressionBuilder()
     {
         return $this->wrapped->getExpressionBuilder();
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @psalm-param class-string<T> $className
+     *
+     * @psalm-return EntityRepository<T>
+     *
+     * @template T of object
+     */
+    public function getRepository($className)
+    {
+        return $this->wrapped->getRepository($className);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getClassMetadata($className)
+    {
+        return $this->wrapped->getClassMetadata($className);
     }
 
     /**
@@ -67,7 +89,7 @@ abstract class EntityManagerDecorator extends ObjectManagerDecorator implements 
     {
         if (! method_exists($this->wrapped, 'wrapInTransaction')) {
             trigger_error(
-                sprintf('Calling `transactional()` instead of `wrapInTransaction()` which is not implemented on %s', get_class($this->wrapped)),
+                sprintf('Calling `transactional()` instead of `wrapInTransaction()` which is not implemented on %s', get_debug_type($this->wrapped)),
                 E_USER_NOTICE
             );
 

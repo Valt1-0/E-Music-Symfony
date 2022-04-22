@@ -13,24 +13,27 @@ namespace Symfony\Flex\Command;
 
 use Composer\Command\BaseCommand;
 use Composer\DependencyResolver\Operation\InstallOperation;
-use Composer\Factory;
+use Composer\Util\ProcessExecutor;
 use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Flex\Event\UpdateEvent;
-use Symfony\Flex\Lock;
+use Symfony\Flex\Flex;
 
 class InstallRecipesCommand extends BaseCommand
 {
+    /** @var Flex */
     private $flex;
     private $rootDir;
+    private $dotenvPath;
 
-    public function __construct(/* cannot be type-hinted */ $flex, string $rootDir)
+    public function __construct(/* cannot be type-hinted */ $flex, string $rootDir, string $dotenvPath = '.env')
     {
         $this->flex = $flex;
         $this->rootDir = $rootDir;
+        $this->dotenvPath = $dotenvPath;
 
         parent::__construct();
     }
@@ -55,7 +58,7 @@ class InstallRecipesCommand extends BaseCommand
             throw new RuntimeException('Cannot run "sync-recipes --force": git not found.');
         }
 
-        $symfonyLock = new Lock(getenv('SYMFONY_LOCKFILE') ?: str_replace('composer.json', 'symfony.lock', Factory::getComposerFile()));
+        $symfonyLock = $this->flex->getLock();
         $composer = $this->getComposer();
         $locker = $composer->getLocker();
         $lockData = $locker->getLockData();
@@ -120,12 +123,15 @@ class InstallRecipesCommand extends BaseCommand
             $operations[] = new InstallOperation($pkg);
         }
 
-        if ($createEnvLocal = $force && file_exists($this->rootDir.'/.env') && file_exists($this->rootDir.'/.env.dist') && !file_exists($this->rootDir.'/.env.local')) {
-            rename($this->rootDir.'/.env', $this->rootDir.'/.env.local');
+        $dotenvFile = $this->dotenvPath;
+        $dotenvPath = $this->rootDir.'/'.$dotenvFile;
+
+        if ($createEnvLocal = $force && file_exists($dotenvPath) && file_exists($dotenvPath.'.dist') && !file_exists($dotenvPath.'.local')) {
+            rename($dotenvPath, $dotenvPath.'.local');
             $pipes = [];
-            proc_close(proc_open(sprintf('git mv .env.dist .env > %s 2>&1 || %s .env.dist .env', $win ? 'NUL' : '/dev/null', $win ? 'rename' : 'mv'), $pipes, $pipes, $this->rootDir));
+            proc_close(proc_open(sprintf('git mv %s %s > %s 2>&1 || %s %1$s %2$s', ProcessExecutor::escape($dotenvFile.'.dist'), ProcessExecutor::escape($dotenvFile), $win ? 'NUL' : '/dev/null', $win ? 'rename' : 'mv'), $pipes, $pipes, $this->rootDir));
             if (file_exists($this->rootDir.'/phpunit.xml.dist')) {
-                touch($this->rootDir.'/.env.test');
+                touch($dotenvPath.'.test');
             }
         }
 
@@ -156,8 +162,9 @@ class InstallRecipesCommand extends BaseCommand
             $output[] = '';
 
             if ($createEnvLocal) {
+                $root = '.' !== $this->rootDir ? $this->rootDir.'/' : '';
                 $output[] = '    To revert the changes made to .env files, run';
-                $output[] = sprintf('    <comment>git mv %s.env %1$s.env.dist</> && <comment>%s %1$s.env.local %1$s.env</>', '.' !== $this->rootDir ? $this->rootDir.'/' : '', $win ? 'rename' : 'mv');
+                $output[] = sprintf('    <comment>git mv %s %s</> && <comment>%s %s %1$s</>', ProcessExecutor::escape($root.$dotenvFile), ProcessExecutor::escape($root.$dotenvFile.'.dist'), $win ? 'rename' : 'mv', ProcessExecutor::escape($root.$dotenvFile.'.local'));
                 $output[] = '';
             }
 

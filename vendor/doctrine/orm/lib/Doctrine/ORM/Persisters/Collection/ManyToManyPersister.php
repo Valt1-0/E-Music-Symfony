@@ -249,7 +249,7 @@ class ManyToManyPersister extends AbstractCollectionPersister
             $field          = $this->quoteStrategy->getColumnName($name, $targetClass, $this->platform);
             $whereClauses[] = sprintf('te.%s %s ?', $field, $operator);
             $params[]       = $value;
-            $paramTypes[]   = PersisterHelper::getTypeOfColumn($field, $targetClass, $this->em);
+            $paramTypes[]   = PersisterHelper::getTypeOfField($name, $targetClass, $this->em)[0];
         }
 
         $tableName = $this->quoteStrategy->getTableName($targetClass, $this->platform);
@@ -501,7 +501,7 @@ class ManyToManyPersister extends AbstractCollectionPersister
      *
      * Internal note: Order of the parameters must be the same as the order of the columns in getInsertRowSql.
      *
-     * @param mixed $element
+     * @param object $element
      *
      * @return mixed[]
      * @psalm-return list<mixed>

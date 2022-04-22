@@ -6,6 +6,7 @@ namespace Doctrine\ORM\Persisters\Entity;
 
 use Doctrine\Common\Collections\Criteria;
 use Doctrine\DBAL\LockMode;
+use Doctrine\DBAL\Types\Type;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Internal\SQLResultCasing;
 use Doctrine\ORM\Mapping\ClassMetadata;
@@ -13,7 +14,6 @@ use Doctrine\ORM\Utility\PersisterHelper;
 
 use function array_combine;
 use function implode;
-use function is_array;
 
 /**
  * The joined subclass persister maps a single entity instance to several tables in the
@@ -159,7 +159,7 @@ class JoinedSubclassPersister extends AbstractEntityInheritancePersister
             $rootTableStmt->executeStatement();
 
             if ($isPostInsertId) {
-                $generatedId     = $idGenerator->generate($this->em, $entity);
+                $generatedId     = $idGenerator->generateId($this->em, $entity);
                 $id              = [$this->class->identifier[0] => $generatedId];
                 $postInsertIds[] = [
                     'generatedId' => $generatedId,
@@ -169,8 +169,8 @@ class JoinedSubclassPersister extends AbstractEntityInheritancePersister
                 $id = $this->em->getUnitOfWork()->getEntityIdentifier($entity);
             }
 
-            if ($this->class->isVersioned) {
-                $this->assignDefaultVersionValue($entity, $id);
+            if ($this->class->requiresFetchAfterChange) {
+                $this->assignDefaultVersionAndUpsertableValues($entity, $id);
             }
 
             // Execute inserts on subtables.
@@ -212,9 +212,6 @@ class JoinedSubclassPersister extends AbstractEntityInheritancePersister
         }
 
         $isVersioned = $this->class->isVersioned;
-        if ($isVersioned === false) {
-            return;
-        }
 
         $versionedClass = $this->getVersionedClassMetadata();
         $versionedTable = $versionedClass->getTableName();
@@ -226,10 +223,10 @@ class JoinedSubclassPersister extends AbstractEntityInheritancePersister
             $this->updateTable($entity, $tableName, $data, $versioned);
         }
 
-        // Make sure the table with the version column is updated even if no columns on that
-        // table were affected.
-        if ($isVersioned) {
-            if (! isset($updateData[$versionedTable])) {
+        if ($this->class->requiresFetchAfterChange) {
+            // Make sure the table with the version column is updated even if no columns on that
+            // table were affected.
+            if ($isVersioned && ! isset($updateData[$versionedTable])) {
                 $tableName = $this->quoteStrategy->getTableName($versionedClass, $this->platform);
 
                 $this->updateTable($entity, $tableName, [], true);
@@ -237,7 +234,7 @@ class JoinedSubclassPersister extends AbstractEntityInheritancePersister
 
             $identifiers = $this->em->getUnitOfWork()->getEntityIdentifier($entity);
 
-            $this->assignDefaultVersionValue($entity, $identifiers);
+            $this->assignDefaultVersionAndUpsertableValues($entity, $identifiers);
         }
     }
 
@@ -412,14 +409,15 @@ class JoinedSubclassPersister extends AbstractEntityInheritancePersister
         }
 
         $columnList       = [];
-        $discrColumn      = $this->class->discriminatorColumn['name'];
-        $discrColumnType  = $this->class->discriminatorColumn['type'];
+        $discrColumn      = $this->class->getDiscriminatorColumn();
+        $discrColumnName  = $discrColumn['name'];
+        $discrColumnType  = $discrColumn['type'];
         $baseTableAlias   = $this->getSQLTableAlias($this->class->name);
-        $resultColumnName = $this->getSQLResultCasing($this->platform, $discrColumn);
+        $resultColumnName = $this->getSQLResultCasing($this->platform, $discrColumnName);
 
         $this->currentPersisterContext->rsm->addEntityResult($this->class->name, 'r');
         $this->currentPersisterContext->rsm->setDiscriminatorColumn('r', $resultColumnName);
-        $this->currentPersisterContext->rsm->addMetaResult('r', $resultColumnName, $discrColumn, false, $discrColumnType);
+        $this->currentPersisterContext->rsm->addMetaResult('r', $resultColumnName, $discrColumnName, false, $discrColumnType);
 
         // Add regular columns
         foreach ($this->class->fieldMappings as $fieldName => $mapping) {
@@ -457,7 +455,7 @@ class JoinedSubclassPersister extends AbstractEntityInheritancePersister
             ? $baseTableAlias
             : $this->getSQLTableAlias($this->class->rootEntityName);
 
-        $columnList[] = $tableAlias . '.' . $discrColumn;
+        $columnList[] = $tableAlias . '.' . $discrColumnName;
 
         // sub tables
         foreach ($this->class->subClasses as $subClassName) {
@@ -540,7 +538,7 @@ class JoinedSubclassPersister extends AbstractEntityInheritancePersister
 
         // Add discriminator column if it is the topmost class.
         if ($this->class->name === $this->class->rootEntityName) {
-            $columns[] = $this->class->discriminatorColumn['name'];
+            $columns[] = $this->class->getDiscriminatorColumn()['name'];
         }
 
         return $columns;
@@ -549,10 +547,15 @@ class JoinedSubclassPersister extends AbstractEntityInheritancePersister
     /**
      * {@inheritdoc}
      */
-    protected function assignDefaultVersionValue($entity, array $id)
+    protected function assignDefaultVersionAndUpsertableValues($entity, array $id)
     {
-        $value = $this->fetchVersionValue($this->getVersionedClassMetadata(), $id);
-        $this->class->setFieldValue($entity, $this->class->versionField, $value);
+        $values = $this->fetchVersionAndNotUpsertableValues($this->getVersionedClassMetadata(), $id);
+
+        foreach ($values as $field => $value) {
+            $value = Type::getType($this->class->fieldMappings[$field]['type'])->convertToPHPValue($value, $this->platform);
+
+            $this->class->setFieldValue($entity, $field, $value);
+        }
     }
 
     private function getJoinSql(string $baseTableAlias): string

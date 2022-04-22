@@ -17,6 +17,8 @@ return [
         ],
         '/index' => [[['_route' => 'index', '_controller' => 'App\\Controller\\IndexController::index'], null, null, null, false, false, null]],
         '/Instrument/listerClasseInstrument' => [[['_route' => 'listerClasseInstrument', '_controller' => 'App\\Controller\\InstrumentController::listerClasseInstrument'], null, null, null, false, false, null]],
+        '/Instrument/listerClasseInstrument2' => [[['_route' => 'listerClasseInstrument2', '_controller' => 'App\\Controller\\InstrumentController::listerClasseInstrument2'], null, null, null, false, false, null]],
+        '/InstrumentTest' => [[['_route' => 'showAction', '_controller' => 'App\\Controller\\InstrumentController::showAction'], null, null, null, true, false, null]],
         '/Instrument/listerAllInstrument' => [[['_route' => 'listerAllInstrument', '_controller' => 'App\\Controller\\InstrumentController::listerAllInstrument'], null, null, null, false, false, null]],
         '/admin/Instrument/ajouterInstrument' => [[['_route' => 'ajouterInstrument', '_controller' => 'App\\Controller\\InstrumentController::ajouterInstrument'], null, null, null, false, false, null]],
         '/prof/Eleve/listerEleve' => [[['_route' => 'listerEleve', '_controller' => 'App\\Controller\\EleveController::listerEleve'], null, null, null, false, false, null]],

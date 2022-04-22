@@ -12,6 +12,14 @@ listerClasseInstrument:
     path: /Instrument/listerClasseInstrument
     controller: App\Controller\InstrumentController::listerClasseInstrument
 
+listerClasseInstrument2:
+    path: /Instrument/listerClasseInstrument2
+    controller: App\Controller\InstrumentController::listerClasseInstrument2
+
+showAction:
+    path: /InstrumentTest/
+    controller: App\Controller\InstrumentController::showAction
+
 listerTypeInstrument:
     path: /Instrument/listerTypeInstrument/{id}
     controller: App\Controller\InstrumentController::listerTypeInstrument

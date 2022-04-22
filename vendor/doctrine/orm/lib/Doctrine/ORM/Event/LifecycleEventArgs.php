@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Doctrine\ORM\Event;
 
-use Doctrine\ORM\EntityManager;
+use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\Event\LifecycleEventArgs as BaseLifecycleEventArgs;
 
 /**
  * Lifecycle Events are triggered by the UnitOfWork during lifecycle transitions
  * of entities.
  *
- * @link   www.doctrine-project.org
+ * @extends BaseLifecycleEventArgs<EntityManagerInterface>
  */
 class LifecycleEventArgs extends BaseLifecycleEventArgs
 {
@@ -28,7 +28,7 @@ class LifecycleEventArgs extends BaseLifecycleEventArgs
     /**
      * Retrieves associated EntityManager.
      *
-     * @return EntityManager
+     * @return EntityManagerInterface
      */
     public function getEntityManager()
     {

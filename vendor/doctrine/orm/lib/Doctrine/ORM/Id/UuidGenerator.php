@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Doctrine\ORM\Id;
 
+use Doctrine\DBAL\Connections\PrimaryReadReplicaConnection;
 use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\Deprecations\Deprecation;
-use Doctrine\ORM\EntityManager;
+use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Exception\NotSupported;
 
 use function method_exists;
+use function sprintf;
 
 /**
  * Represents an ID generator that uses the database UUID expression
@@ -28,7 +30,10 @@ class UuidGenerator extends AbstractIdGenerator
         );
 
         if (! method_exists(AbstractPlatform::class, 'getGuidExpression')) {
-            throw NotSupported::createForDbal3();
+            throw NotSupported::createForDbal3(sprintf(
+                'Using the database to generate a UUID through %s',
+                self::class
+            ));
         }
     }
 
@@ -37,11 +42,15 @@ class UuidGenerator extends AbstractIdGenerator
      *
      * @throws NotSupported
      */
-    public function generate(EntityManager $em, $entity)
+    public function generateId(EntityManagerInterface $em, $entity)
     {
-        $conn = $em->getConnection();
-        $sql  = 'SELECT ' . $conn->getDatabasePlatform()->getGuidExpression();
+        $connection = $em->getConnection();
+        $sql        = 'SELECT ' . $connection->getDatabasePlatform()->getGuidExpression();
 
-        return $conn->executeQuery($sql)->fetchOne();
+        if ($connection instanceof PrimaryReadReplicaConnection) {
+            $connection->ensureConnectedToPrimary();
+        }
+
+        return $connection->executeQuery($sql)->fetchOne();
     }
 }

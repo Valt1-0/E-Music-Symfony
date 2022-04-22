@@ -151,7 +151,7 @@ trait RedisTrait
                 if (preg_match('#/(\d+)$#', $params['path'], $m)) {
                     $params['dbindex'] = $m[1];
                     $params['path'] = substr($params['path'], 0, -\strlen($m[0]));
-                } else {
+                } elseif (isset($params['host'])) {
                     throw new InvalidArgumentException(sprintf('Invalid Redis DSN: "%s", the "dbindex" parameter must be a number.', $dsn));
                 }
             }
@@ -189,7 +189,7 @@ trait RedisTrait
 
             $initializer = static function ($redis) use ($connect, $params, $dsn, $auth, $hosts, $tls) {
                 $host = $hosts[0]['host'] ?? $hosts[0]['path'];
-                $port = $hosts[0]['port'] ?? null;
+                $port = $hosts[0]['port'] ?? 6379;
 
                 if (isset($hosts[0]['host']) && $tls) {
                     $host = 'tls://'.$host;

@@ -6,15 +6,21 @@ use App\Entity\Accessoire;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Request;
+use JMS\Serializer\Annotation as Serializer;
+use JMS\Serializer\SerializationContext;
+use JMS\Serializer\SerializerInterface;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use App\Entity\Instrument;
 use App\Entity\ClasseInstrument;
 use App\Entity\TypeInstrument;
 use App\Form\InstrumentType;
 use App\Form\InstrumentModifierType;
 
-
 class InstrumentController extends AbstractController
 {
+
+    public static function getSubscribedServices() { return array_merge(parent::getSubscribedServices(), [ 'jms_serializer' => '?'.SerializerInterface::class, ]); }
 
     public function listerClasseInstrument(): Response
     {
@@ -25,7 +31,37 @@ class InstrumentController extends AbstractController
         return $this->render('Instrument/listerClasse.html.twig', ['pClassesInstrument' => $ClassesInstrument,]);
     }
 
-    public function listerTypeInstrument($id)
+
+    // FONCTIONNEL
+    public function listerClasseInstrument2(): Response {
+
+        $ClassesInstrument = $this->getDoctrine()->getRepository('App:ClasseInstrument')->findAll();
+
+        $data = $this->get('jms_serializer')->serialize($ClassesInstrument, 'json' ,SerializationContext::create()->setGroups(array('list')) );
+
+        $response = new Response($data);
+        $response->headers->set('Content-Type', 'application/json');
+
+        return $response;
+    }
+
+
+    public function showAction()
+    {
+        $article = new ClasseInstrument();
+        $article
+            ->setLibelle('Test Serializer JSON')
+        ;
+        $data = $this->get('jms_serializer')->serialize($article, 'json');
+
+        $response = new Response($data);
+        $response->headers->set('Content-Type', 'application/json');
+
+        return $response;
+    }
+
+
+    /*public function listerTypeInstrument($id)
     {
         // initialise une variable qui sera exploitée dans la vue
 
@@ -34,6 +70,22 @@ class InstrumentController extends AbstractController
             ->findByClasseInstrument($id);
 
         return $this->render('Instrument/listerType.html.twig', ['pTypeInstrument' => $typeInstrument,]);
+    }*/
+
+    public function listerTypeInstrument($id)
+    {
+        // initialise une variable qui sera exploitée dans la vue
+
+        $typeInstrument = $this->getDoctrine()
+            ->getRepository(TypeInstrument::class)
+            ->findByClasseInstrument($id);
+
+        $data = $this->get('jms_serializer')->serialize($typeInstrument, 'json');
+
+        $response = new Response($data);
+        $response->headers->set('Content-Type', 'application/json');
+
+        return $response;
     }
 
 
@@ -147,7 +199,7 @@ class InstrumentController extends AbstractController
     }
 
     public function listerLesInterventionsInstrument($idInstrument){
-		
+
 		$instrument = $this->getDoctrine()
         ->getRepository(Instrument::class)
         ->find($idInstrument);

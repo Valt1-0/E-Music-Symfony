@@ -3,6 +3,7 @@
 namespace Doctrine\Bundle\DoctrineBundle\DependencyInjection;
 
 use Doctrine\Bundle\DoctrineBundle\Attribute\AsEntityListener;
+use Doctrine\Bundle\DoctrineBundle\Attribute\AsMiddleware;
 use Doctrine\Bundle\DoctrineBundle\CacheWarmer\DoctrineMetadataCacheWarmer;
 use Doctrine\Bundle\DoctrineBundle\Command\Proxy\ImportDoctrineCommand;
 use Doctrine\Bundle\DoctrineBundle\Dbal\ManagerRegistryAwareConnectionProvider;
@@ -13,12 +14,19 @@ use Doctrine\Bundle\DoctrineBundle\EventSubscriber\EventSubscriberInterface;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepositoryInterface;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Connections\PrimaryReadReplicaConnection;
+use Doctrine\DBAL\Driver\Middleware as MiddlewareInterface;
 use Doctrine\DBAL\Logging\LoggerChain;
+use Doctrine\DBAL\Logging\Middleware;
+use Doctrine\DBAL\Sharding\PoolingShardConnection;
+use Doctrine\DBAL\Sharding\PoolingShardManager;
 use Doctrine\DBAL\Tools\Console\Command\ImportCommand;
 use Doctrine\DBAL\Tools\Console\ConnectionProvider;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Id\AbstractIdGenerator;
 use Doctrine\ORM\Proxy\Autoloader;
+use Doctrine\ORM\Tools\Console\Command\ConvertMappingCommand;
+use Doctrine\ORM\Tools\Console\Command\EnsureProductionSettingsCommand;
+use Doctrine\ORM\Tools\Export\ClassMetadataExporter;
 use Doctrine\ORM\UnitOfWork;
 use LogicException;
 use Symfony\Bridge\Doctrine\DependencyInjection\AbstractDoctrineExtension;
@@ -57,6 +65,8 @@ use function method_exists;
 use function reset;
 use function sprintf;
 use function str_replace;
+
+use const PHP_VERSION_ID;
 
 /**
  * DoctrineExtension is an extension for the Doctrine DBAL and ORM library.
@@ -136,9 +146,33 @@ class DoctrineExtension extends AbstractDoctrineExtension
         $container->setParameter('doctrine.connections', $connections);
         $container->setParameter('doctrine.default_connection', $this->defaultConnection);
 
+        $connWithLogging = [];
         foreach ($config['connections'] as $name => $connection) {
+            if ($connection['logging']) {
+                $connWithLogging[] = $name;
+            }
+
             $this->loadDbalConnection($name, $connection, $container);
         }
+
+        /** @psalm-suppress UndefinedClass */
+        $container->registerForAutoconfiguration(MiddlewareInterface::class)->addTag('doctrine.middleware');
+
+        if (PHP_VERSION_ID >= 80000 && method_exists(ContainerBuilder::class, 'registerAttributeForAutoconfiguration')) {
+            $container->registerAttributeForAutoconfiguration(AsMiddleware::class, static function (ChildDefinition $definition, AsMiddleware $attribute) {
+                if ($attribute->connections === []) {
+                    $definition->addTag('doctrine.middleware');
+
+                    return;
+                }
+
+                foreach ($attribute->connections as $connName) {
+                    $definition->addTag('doctrine.middleware', ['connection' => $connName]);
+                }
+            });
+        }
+
+        $this->useMiddlewaresIfAvailable($container, $connWithLogging);
     }
 
     /**
@@ -400,12 +434,12 @@ class DoctrineExtension extends AbstractDoctrineExtension
 
             if (empty($options['wrapperClass'])) {
                 // Change the wrapper class only if the user does not already forced using a custom one.
-                $options['wrapperClass'] = 'Doctrine\\DBAL\\Sharding\\PoolingShardConnection';
+                $options['wrapperClass'] = PoolingShardConnection::class;
             }
 
             if (empty($options['shardManagerClass'])) {
                 // Change the shard manager class only if the user does not already forced using a custom one.
-                $options['shardManagerClass'] = 'Doctrine\\DBAL\\Sharding\\PoolingShardManager';
+                $options['shardManagerClass'] = PoolingShardManager::class;
             }
         } else {
             unset($options['shards']);
@@ -458,6 +492,19 @@ class DoctrineExtension extends AbstractDoctrineExtension
 
         if (! class_exists(UuidGenerator::class)) {
             $container->removeDefinition('doctrine.uuid_generator');
+        }
+
+        // not available in Doctrine ORM 3.0 and higher
+        if (! class_exists(ConvertMappingCommand::class)) {
+            $container->removeDefinition('doctrine.mapping_convert_command');
+        }
+
+        if (! class_exists(EnsureProductionSettingsCommand::class)) {
+            $container->removeDefinition('doctrine.ensure_production_settings_command');
+        }
+
+        if (! class_exists(ClassMetadataExporter::class)) {
+            $container->removeDefinition('doctrine.mapping_import_command');
         }
 
         $entityManagers = [];
@@ -528,6 +575,7 @@ class DoctrineExtension extends AbstractDoctrineExtension
                     'method'         => $attribute->method,
                     'lazy'           => $attribute->lazy,
                     'entity_manager' => $attribute->entityManager,
+                    'entity'         => $attribute->entity,
                 ]);
             });
         }
@@ -563,8 +611,8 @@ class DoctrineExtension extends AbstractDoctrineExtension
 
         $methods = [
             'setMetadataCache' => new Reference(sprintf('doctrine.orm.%s_metadata_cache', $entityManager['name'])),
-            'setQueryCacheImpl' => new Reference(sprintf('doctrine.orm.%s_query_cache', $entityManager['name'])),
-            'setResultCacheImpl' => new Reference(sprintf('doctrine.orm.%s_result_cache', $entityManager['name'])),
+            'setQueryCache' => new Reference(sprintf('doctrine.orm.%s_query_cache', $entityManager['name'])),
+            'setResultCache' => new Reference(sprintf('doctrine.orm.%s_result_cache', $entityManager['name'])),
             'setMetadataDriverImpl' => new Reference('doctrine.orm.' . $entityManager['name'] . '_metadata_driver'),
             'setProxyDir' => '%doctrine.orm.proxy_dir%',
             'setProxyNamespace' => '%doctrine.orm.proxy_namespace%',
@@ -1049,5 +1097,26 @@ class DoctrineExtension extends AbstractDoctrineExtension
         $container->setDefinition($id, $poolDefinition);
 
         return $id;
+    }
+
+    /** @param string[] $connWithLogging */
+    private function useMiddlewaresIfAvailable(ContainerBuilder $container, array $connWithLogging): void
+    {
+        /** @psalm-suppress UndefinedClass */
+        if (! class_exists(Middleware::class)) {
+            return;
+        }
+
+        $container
+            ->getDefinition('doctrine.dbal.logger')
+            ->replaceArgument(0, null);
+
+        $loader = new XmlFileLoader($container, new FileLocator(__DIR__ . '/../Resources/config'));
+        $loader->load('middlewares.xml');
+
+        $loggingMiddlewareAbstractDef = $container->getDefinition('doctrine.dbal.logging_middleware');
+        foreach ($connWithLogging as $connName) {
+            $loggingMiddlewareAbstractDef->addTag('doctrine.middleware', ['connection' => $connName]);
+        }
     }
 }

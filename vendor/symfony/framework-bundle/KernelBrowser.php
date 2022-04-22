@@ -123,7 +123,10 @@ class KernelBrowser extends HttpKernelBrowser
         }
 
         $token = new TestBrowserToken($user->getRoles(), $user, $firewallContext);
-        $token->setAuthenticated(true);
+        // @deprecated since Symfony 5.4
+        if (method_exists($token, 'setAuthenticated')) {
+            $token->setAuthenticated(true, false);
+        }
 
         $container = $this->getContainer();
         $container->get('security.untracked_token_storage')->setToken($token);
@@ -139,8 +142,13 @@ class KernelBrowser extends HttpKernelBrowser
         $session->set('_security_'.$firewallContext, serialize($token));
         $session->save();
 
-        $cookie = new Cookie($session->getName(), $session->getId());
-        $this->getCookieJar()->set($cookie);
+        $domains = array_unique(array_map(function (Cookie $cookie) use ($session) {
+            return $cookie->getName() === $session->getName() ? $cookie->getDomain() : '';
+        }, $this->getCookieJar()->all())) ?: [''];
+        foreach ($domains as $domain) {
+            $cookie = new Cookie($session->getName(), $session->getId(), null, null, $domain);
+            $this->getCookieJar()->set($cookie);
+        }
 
         return $this;
     }

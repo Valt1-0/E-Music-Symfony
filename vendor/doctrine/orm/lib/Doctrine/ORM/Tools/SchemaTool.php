@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Doctrine\ORM\Tools;
 
+use BackedEnum;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Schema\AbstractAsset;
@@ -129,7 +130,8 @@ class SchemaTool
         return isset($processedClasses[$class->name]) ||
             $class->isMappedSuperclass ||
             $class->isEmbeddedClass ||
-            ($class->isInheritanceTypeSingleTable() && $class->name !== $class->rootEntityName);
+            ($class->isInheritanceTypeSingleTable() && $class->name !== $class->rootEntityName) ||
+            in_array($class->name, $this->em->getConfiguration()->getSchemaIgnoreClasses());
     }
 
     /**
@@ -191,7 +193,6 @@ class SchemaTool
         $eventManager         = $this->em->getEventManager();
         $metadataSchemaConfig = $this->schemaManager->createSchemaConfig();
 
-        $metadataSchemaConfig->setExplicitForeignKeyIndexes(false);
         $schema = new Schema([], [], $metadataSchemaConfig);
 
         $addedFks       = [];
@@ -781,12 +782,22 @@ class SchemaTool
      */
     private function gatherColumnOptions(array $mapping): array
     {
-        if (! isset($mapping['options'])) {
+        $mappingOptions = $mapping['options'] ?? [];
+
+        if (isset($mapping['enumType'])) {
+            $mappingOptions['enumType'] = $mapping['enumType'];
+        }
+
+        if (($mappingOptions['default'] ?? null) instanceof BackedEnum) {
+            $mappingOptions['default'] = $mappingOptions['default']->value;
+        }
+
+        if (empty($mappingOptions)) {
             return [];
         }
 
-        $options                        = array_intersect_key($mapping['options'], array_flip(self::KNOWN_COLUMN_OPTIONS));
-        $options['customSchemaOptions'] = array_diff_key($mapping['options'], $options);
+        $options                        = array_intersect_key($mappingOptions, array_flip(self::KNOWN_COLUMN_OPTIONS));
+        $options['customSchemaOptions'] = array_diff_key($mappingOptions, $options);
 
         return $options;
     }
@@ -930,8 +941,13 @@ class SchemaTool
         $toSchema   = $this->getSchemaFromMetadata($classes);
         $fromSchema = $this->createSchemaForComparison($toSchema);
 
-        $comparator = new Comparator();
-        $schemaDiff = $comparator->compare($fromSchema, $toSchema);
+        if (method_exists($this->schemaManager, 'createComparator')) {
+            $comparator = $this->schemaManager->createComparator();
+        } else {
+            $comparator = new Comparator();
+        }
+
+        $schemaDiff = $comparator->compareSchemas($fromSchema, $toSchema);
 
         if ($saveMode) {
             return $schemaDiff->toSaveSql($this->platform);

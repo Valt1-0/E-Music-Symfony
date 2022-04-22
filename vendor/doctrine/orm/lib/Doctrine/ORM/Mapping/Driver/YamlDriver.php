@@ -11,9 +11,11 @@ use Doctrine\ORM\Mapping\MappingException;
 use Doctrine\Persistence\Mapping\ClassMetadata;
 use Doctrine\Persistence\Mapping\Driver\FileDriver;
 use InvalidArgumentException;
+use LogicException;
 use Symfony\Component\Yaml\Yaml;
 
 use function array_map;
+use function class_exists;
 use function constant;
 use function defined;
 use function explode;
@@ -42,8 +44,16 @@ class YamlDriver extends FileDriver
         Deprecation::trigger(
             'doctrine/orm',
             'https://github.com/doctrine/orm/issues/8465',
-            'YAML mapping driver is deprecated and will be removed in Doctrine ORM 3.0, please migrate to annotation or XML driver.'
+            'YAML mapping driver is deprecated and will be removed in Doctrine ORM 3.0, please migrate to attribute or XML driver.'
         );
+
+        if (! class_exists(Yaml::class)) {
+            throw new LogicException(sprintf(
+                'The YAML metadata driver cannot be enabled because the "symfony/yaml" library'
+                . ' is not installed. Please run "composer require symfony/yaml" or choose a different'
+                . ' metadata driver.'
+            ));
+        }
 
         parent::__construct($locator, $fileExtension);
     }
@@ -786,6 +796,10 @@ class YamlDriver extends FileDriver
      *                   unique?: mixed,
      *                   options?: mixed,
      *                   nullable?: mixed,
+     *                   insertable?: mixed,
+     *                   updatable?: mixed,
+     *                   generated?: mixed,
+     *                   enumType?: class-string,
      *                   version?: mixed,
      *                   columnDefinition?: mixed
      *              }|null $column
@@ -801,6 +815,10 @@ class YamlDriver extends FileDriver
      *                   unique?: bool,
      *                   options?: mixed,
      *                   nullable?: mixed,
+     *                   notInsertable?: mixed,
+     *                   notUpdatable?: mixed,
+     *                   generated?: mixed,
+     *                   enumType?: class-string,
      *                   version?: mixed,
      *                   columnDefinition?: mixed
      *               }
@@ -848,12 +866,28 @@ class YamlDriver extends FileDriver
             $mapping['nullable'] = $column['nullable'];
         }
 
+        if (isset($column['insertable']) && ! (bool) $column['insertable']) {
+            $mapping['notInsertable'] = true;
+        }
+
+        if (isset($column['updatable']) && ! (bool) $column['updatable']) {
+            $mapping['notUpdatable'] = true;
+        }
+
+        if (isset($column['generated'])) {
+            $mapping['generated'] = constant('Doctrine\ORM\Mapping\ClassMetadata::GENERATED_' . $column['generated']);
+        }
+
         if (isset($column['version']) && $column['version']) {
             $mapping['version'] = $column['version'];
         }
 
         if (isset($column['columnDefinition'])) {
             $mapping['columnDefinition'] = $column['columnDefinition'];
+        }
+
+        if (isset($column['enumType'])) {
+            $mapping['enumType'] = $column['enumType'];
         }
 
         return $mapping;

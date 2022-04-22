@@ -12,14 +12,13 @@ use function microtime;
 class TimestampCacheEntry implements CacheEntry
 {
     /**
-     * READ-ONLY: Public only for performance reasons, it should be considered immutable.
-     *
+     * @readonly Public only for performance reasons, it should be considered immutable.
      * @var float
      */
     public $time;
 
     /**
-     * @param float $time
+     * @param float|null $time
      */
     public function __construct($time = null)
     {

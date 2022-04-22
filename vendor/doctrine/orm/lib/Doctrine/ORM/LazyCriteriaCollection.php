@@ -9,12 +9,20 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Criteria;
 use Doctrine\Common\Collections\Selectable;
 use Doctrine\ORM\Persisters\Entity\EntityPersister;
+use ReturnTypeWillChange;
+
+use function assert;
 
 /**
  * A lazy collection that allows a fast count when using criteria object
  * Once count gets executed once without collection being initialized, result
  * is cached and returned on subsequent calls until collection gets loaded,
  * then returning the number of loaded results.
+ *
+ * @template TKey of array-key
+ * @template TValue of object
+ * @extends AbstractLazyCollection<TKey, TValue>
+ * @implements Selectable<TKey, TValue>
  */
 class LazyCriteriaCollection extends AbstractLazyCollection implements Selectable
 {
@@ -38,6 +46,7 @@ class LazyCriteriaCollection extends AbstractLazyCollection implements Selectabl
      *
      * @return int
      */
+    #[ReturnTypeWillChange]
     public function count()
     {
         if ($this->isInitialized()) {
@@ -70,6 +79,7 @@ class LazyCriteriaCollection extends AbstractLazyCollection implements Selectabl
      * Do an optimized search of an element
      *
      * @param object $element
+     * @psalm-param TValue $element
      *
      * @return bool
      */
@@ -88,6 +98,7 @@ class LazyCriteriaCollection extends AbstractLazyCollection implements Selectabl
     public function matching(Criteria $criteria)
     {
         $this->initialize();
+        assert($this->collection instanceof Selectable);
 
         return $this->collection->matching($criteria);
     }

@@ -12,22 +12,24 @@ use function microtime;
 class QueryCacheEntry implements CacheEntry
 {
     /**
-     * READ-ONLY: Public only for performance reasons, it should be considered immutable.
+     * List of entity identifiers
      *
-     * @var array<string, mixed> List of entity identifiers
+     * @readonly Public only for performance reasons, it should be considered immutable.
+     * @var array<string, mixed>
      */
     public $result;
 
     /**
-     * READ-ONLY: Public only for performance reasons, it should be considered immutable.
+     * Time creation of this cache entry
      *
-     * @var float Time creation of this cache entry
+     * @readonly Public only for performance reasons, it should be considered immutable.
+     * @var float
      */
     public $time;
 
     /**
      * @param array<string, mixed> $result
-     * @param float                $time
+     * @param float|null           $time
      */
     public function __construct($result, $time = null)
     {

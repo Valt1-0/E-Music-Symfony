@@ -12,6 +12,8 @@ return [
     '_preview_error' => [['code', '_format'], ['_controller' => 'error_controller::preview', '_format' => 'html'], ['code' => '\\d+'], [['variable', '.', '[^/]++', '_format', true], ['variable', '/', '\\d+', 'code', true], ['text', '/_error']], [], []],
     'index' => [[], ['_controller' => 'App\\Controller\\IndexController::index'], [], [['text', '/index']], [], []],
     'listerClasseInstrument' => [[], ['_controller' => 'App\\Controller\\InstrumentController::listerClasseInstrument'], [], [['text', '/Instrument/listerClasseInstrument']], [], []],
+    'listerClasseInstrument2' => [[], ['_controller' => 'App\\Controller\\InstrumentController::listerClasseInstrument2'], [], [['text', '/Instrument/listerClasseInstrument2']], [], []],
+    'showAction' => [[], ['_controller' => 'App\\Controller\\InstrumentController::showAction'], [], [['text', '/InstrumentTest/']], [], []],
     'listerTypeInstrument' => [['id'], ['_controller' => 'App\\Controller\\InstrumentController::listerTypeInstrument'], [], [['variable', '/', '[^/]++', 'id', true], ['text', '/Instrument/listerTypeInstrument']], [], []],
     'listerInstrument' => [['id'], ['_controller' => 'App\\Controller\\InstrumentController::listerInstrument'], [], [['variable', '/', '[^/]++', 'id', true], ['text', '/Instrument/listerInstrument']], [], []],
     'listerAllInstrument' => [[], ['_controller' => 'App\\Controller\\InstrumentController::listerAllInstrument'], [], [['text', '/Instrument/listerAllInstrument']], [], []],

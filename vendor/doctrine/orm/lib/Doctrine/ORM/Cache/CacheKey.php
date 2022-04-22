@@ -11,9 +11,10 @@ namespace Doctrine\ORM\Cache;
 abstract class CacheKey
 {
     /**
-     * READ-ONLY: Public only for performance reasons, it should be considered immutable.
+     * Unique identifier
      *
-     * @var string Unique identifier
+     * @readonly Public only for performance reasons, it should be considered immutable.
+     * @var string
      */
     public $hash;
 }

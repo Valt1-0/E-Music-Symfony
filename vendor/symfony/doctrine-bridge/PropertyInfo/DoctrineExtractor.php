@@ -134,13 +134,16 @@ class DoctrineExtractor implements PropertyListExtractorInterface, PropertyTypeE
         }
 
         if ($metadata->hasField($property)) {
+            $nullable = $metadata instanceof ClassMetadataInfo && $metadata->isNullable($property);
+            if (null !== $enumClass = $metadata->getFieldMapping($property)['enumType'] ?? null) {
+                return [new Type(Type::BUILTIN_TYPE_OBJECT, $nullable, $enumClass)];
+            }
+
             $typeOfField = $metadata->getTypeOfField($property);
 
             if (!$builtinType = $this->getPhpType($typeOfField)) {
                 return null;
             }
-
-            $nullable = $metadata instanceof ClassMetadataInfo && $metadata->isNullable($property);
 
             switch ($builtinType) {
                 case Type::BUILTIN_TYPE_OBJECT:
@@ -167,7 +170,6 @@ class DoctrineExtractor implements PropertyListExtractorInterface, PropertyTypeE
                     switch ($typeOfField) {
                         case Types::ARRAY:
                         case 'json_array':
-                        case 'json':
                             return [new Type(Type::BUILTIN_TYPE_ARRAY, $nullable, null, true)];
 
                         case Types::SIMPLE_ARRAY:
@@ -209,7 +211,7 @@ class DoctrineExtractor implements PropertyListExtractorInterface, PropertyTypeE
     {
         try {
             return $this->entityManager ? $this->entityManager->getClassMetadata($class) : $this->classMetadataFactory->getMetadataFor($class);
-        } catch (MappingException | OrmMappingException $exception) {
+        } catch (MappingException|OrmMappingException $exception) {
             return null;
         }
     }
@@ -282,7 +284,6 @@ class DoctrineExtractor implements PropertyListExtractorInterface, PropertyTypeE
             case Types::ARRAY:
             case Types::SIMPLE_ARRAY:
             case 'json_array':
-            case 'json':
                 return Type::BUILTIN_TYPE_ARRAY;
         }
 
